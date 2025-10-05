@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
+	"net/mail"
 	"os"
 )
 
@@ -25,5 +27,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn.Write([]byte("+PONG\r\n"))
+	messageBuffer = make([]byte, 1024)
+	for message != io.EOF {
+		message, err = conn.Read()
+		if err != nil {
+			fmt.Println("Error reading from connection: ", err.Error())
+		}
+		if message == "PING\n" {
+			_, err = conn.Write([]byte("+PONG\r\n"))
+			if err != nil {
+				fmt.Println("Failed to send PING")
+			}
+		}
+	}
+
 }
