@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"net"
-	"net/mail"
 	"os"
+	"strings"
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
@@ -27,16 +26,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	messageBuffer = make([]byte, 1024)
-	for message != io.EOF {
-		message, err = conn.Read()
+	messageBuffer := make([]byte, 1024)
+
+	defer conn.Close()
+	for length, err := conn.Read(messageBuffer); length > 0; length, err = conn.Read(messageBuffer) {
+		if err != nil {
+			fmt.Println("Error reading: ", err.Error())
+		}
+
+		// Only consider the bytes actually read this iteration
+		data := messageBuffer[:length]
 		if err != nil {
 			fmt.Println("Error reading from connection: ", err.Error())
 		}
-		if message == "PING\n" {
+
+		if string(data) == "PING" || strings.Contains(string(data), "PING") {
 			_, err = conn.Write([]byte("+PONG\r\n"))
 			if err != nil {
-				fmt.Println("Failed to send PING")
+				fmt.Println("Failed to send PONG: ", err.Error())
 			}
 		}
 	}
