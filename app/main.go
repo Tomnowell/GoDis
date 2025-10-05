@@ -20,32 +20,34 @@ func main() {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
 
-	messageBuffer := make([]byte, 1024)
-
-	defer conn.Close()
-	for length, err := conn.Read(messageBuffer); length > 0; length, err = conn.Read(messageBuffer) {
+	for {
+		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error reading: ", err.Error())
+			fmt.Println("Error accepting connection: ", err.Error())
+			continue
 		}
+		go handleConnection(conn)
+	}
+}
 
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+	messageBuffer := make([]byte, 1024)
+	for {
+		length, readErr := conn.Read(messageBuffer)
+		if readErr != nil {
+			if readErr.Error() != "EOF" {
+				fmt.Println("Error reading from connection: ", readErr.Error())
+			}
+			return
+		}
 		// Only consider the bytes actually read this iteration
 		data := messageBuffer[:length]
-		if err != nil {
-			fmt.Println("Error reading from connection: ", err.Error())
-		}
-
 		if string(data) == "PING" || strings.Contains(string(data), "PING") {
-			_, err = conn.Write([]byte("+PONG\r\n"))
-			if err != nil {
-				fmt.Println("Failed to send PONG: ", err.Error())
+			if _, writeErr := conn.Write([]byte("+PONG\r\n")); writeErr != nil {
+				fmt.Println("Failed to send PONG: ", writeErr.Error())
 			}
 		}
 	}
-
 }
