@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
@@ -28,26 +27,5 @@ func main() {
 			continue
 		}
 		go handleConnection(conn)
-	}
-}
-
-func handleConnection(conn net.Conn) {
-	defer conn.Close()
-	messageBuffer := make([]byte, 1024)
-	for {
-		length, readErr := conn.Read(messageBuffer)
-		if readErr != nil {
-			if readErr.Error() != "EOF" {
-				fmt.Println("Error reading from connection: ", readErr.Error())
-			}
-			return
-		}
-		// Only consider the bytes actually read this iteration
-		data := messageBuffer[:length]
-		if string(data) == "PING" || strings.Contains(string(data), "PING") {
-			if _, writeErr := conn.Write([]byte("+PONG\r\n")); writeErr != nil {
-				fmt.Println("Failed to send PONG: ", writeErr.Error())
-			}
-		}
 	}
 }
