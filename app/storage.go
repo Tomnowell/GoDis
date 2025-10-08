@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 )
 
 const (
@@ -25,4 +26,9 @@ func getStore(key string) []byte {
 	}
 	fmt.Printf("store pointer(storage): %p\n", &store)
 	return []byte(nullBulkString)
+}
+
+func deleteStore(key string, delay time.Duration) {
+	time.Sleep(delay)
+	delete(store, key)
 }

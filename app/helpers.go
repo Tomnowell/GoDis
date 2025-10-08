@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func encodeBulkString(s string) []byte {
@@ -29,6 +30,7 @@ func readLine(reader *bufio.Reader) (string, error) {
 	fmt.Println("line:", []byte(trimmed)) // debug: show CR if it exists
 	return trimmed, nil
 }
+
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
@@ -54,8 +56,13 @@ func handleConnection(conn net.Conn) {
 		set := false
 		get := false
 		setValueTrigger := false
+		optionDetect := false
+		optionValueDetect := false
+
 		key := ""
 		value := ""
+		option := ""
+		optionValue := 0
 
 		for _, element := range arr {
 			fmt.Println(element)
@@ -77,8 +84,28 @@ func handleConnection(conn net.Conn) {
 				value = str
 				setStore(key, value)
 				_, err := conn.Write(encodeSimpleString("OK"))
+				optionDetect = true
 				if err != nil {
 					fmt.Println(" Error parsing echo")
+				}
+			} else if optionDetect {
+				optionDetect = false
+				option = strings.ToUpper(str)
+				optionValueDetect = true
+			} else if optionValueDetect {
+				optionValueDetect = false
+				optionValue, _ = strconv.Atoi(str)
+				switch option {
+				case "EX":
+					// TODO Delete SET value after value seconds (use subroutine to not hang system)
+					delay := time.Duration(optionValue) * time.Second
+					go deleteStore(key, delay)
+
+				case "PX":
+					// TODO Delete SET value after value milliseconds
+
+					delay := time.Duration(optionValue) * time.Millisecond
+					go deleteStore(key, delay)
 				}
 			}
 			if get {
