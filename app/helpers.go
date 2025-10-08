@@ -9,6 +9,16 @@ import (
 	"time"
 )
 
+const (
+	read              inputState = iota
+	echo              inputState = iota
+	setDetect         inputState = iota
+	setValue          inputState = iota
+	getValue          inputState = iota
+	optionDetect      inputState = iota
+	optionValueDetect inputState = iota
+)
+
 func encodeBulkString(s string) []byte {
 	length := len(s)
 	// convert the length to a string using strconv.Itoa
@@ -39,6 +49,7 @@ func handleConnection(conn net.Conn) {
 	for {
 		tokenInterface, tokenErr = parseRESP(reader)
 		if tokenErr != nil {
+
 			if tokenErr.Error() != "EOF" {
 				fmt.Println("EOF ", tokenErr.Error())
 			}
@@ -51,94 +62,97 @@ func handleConnection(conn net.Conn) {
 			fmt.Println("Error parsing token: ", tokenErr.Error())
 			return
 		}
+		processTokens(arr, conn)
+	}
+}
 
-		echo := false
-		set := false
-		get := false
-		setValueTrigger := false
-		optionDetect := false
-		optionValueDetect := false
+func processTokens(arr []interface{}, conn net.Conn) {
+	// FSM partially implemented to make reading a little easier.
+	// I think there's still more refactoring needed here.
+	var state inputState = read
 
-		key := ""
-		value := ""
-		option := ""
-		optionValue := 0
+	key := ""
+	value := ""
+	option := ""
+	optionValue := 0
 
-		for _, element := range arr {
-			fmt.Println(element)
-			str := element.(string)
-			bulkString := encodeBulkString(str)
-			if echo {
-				echo = false
-				_, err := conn.Write(bulkString)
-				if err != nil {
-					fmt.Println(" Error parsing echo")
-				}
-			}
-			if set {
-				set = false
-				setValueTrigger = true
-				key = str
-			} else if setValueTrigger {
-				setValueTrigger = false
-				value = str
-				setStore(key, value)
-				_, err := conn.Write(encodeSimpleString("OK"))
-				optionDetect = true
-				if err != nil {
-					fmt.Println(" Error parsing echo")
-				}
-			} else if optionDetect {
-				optionDetect = false
-				option = strings.ToUpper(str)
-				optionValueDetect = true
-			} else if optionValueDetect {
-				optionValueDetect = false
-				optionValue, _ = strconv.Atoi(str)
-				switch option {
-				case "EX":
-					// TODO Delete SET value after value seconds (use subroutine to not hang system)
-					delay := time.Duration(optionValue) * time.Second
-					go deleteStore(key, delay)
-
-				case "PX":
-					// TODO Delete SET value after value milliseconds
-
-					delay := time.Duration(optionValue) * time.Millisecond
-					go deleteStore(key, delay)
-				}
-			}
-			if get {
-				r := getStore(str)
-				_, err := conn.Write([]byte(r))
-				if err != nil {
-					fmt.Println(" Error parsing GET")
-				}
-				get = false
+	for _, element := range arr {
+		fmt.Println(element)
+		str := element.(string)
+		bulkString := encodeBulkString(str)
+		switch state {
+		case echo:
+			state = read
+			_, err := conn.Write(bulkString)
+			if err != nil {
+				fmt.Println(" Error parsing echo")
 			}
 
+		case setDetect:
+			state = setValue
+			key = str
+
+		case setValue:
+			state = optionDetect
+			value = str
+			setStore(key, value)
+			_, err := conn.Write(encodeSimpleString("OK"))
+			if err != nil {
+				fmt.Println(" Error parsing echo")
+			}
+
+		case optionDetect:
+			state = optionValueDetect
+			option = strings.ToUpper(str)
+
+		case optionValueDetect:
+			optionValue, _ = strconv.Atoi(str)
+			switch option {
+			case "EX":
+				// Delayed delete (temporary key). Delay in seconds
+				delay := time.Duration(optionValue) * time.Second
+				go deleteStore(key, delay)
+
+			case "PX":
+				// Delayed delete (temporary key). Delay in milliseconds
+				delay := time.Duration(optionValue) * time.Millisecond
+				go deleteStore(key, delay)
+			}
+
+		case getValue:
+			r := getStore(str)
+			_, err := conn.Write(r)
+			if err != nil {
+				fmt.Println(" Error parsing GET")
+			}
+			state = read
+
+		case read:
 			if strings.ToUpper(str) == "PING" {
 				i, err := conn.Write([]byte("+PONG\r\n"))
 				if err != nil {
 					fmt.Println("Ërror parsing array")
 					fmt.Println(err.Error())
 					fmt.Println(i)
-					return
 				}
 			}
 			if strings.ToUpper(str) == "ECHO" {
-				echo = true
+				state = echo
 			}
 
 			if strings.ToUpper(str) == "SET" {
-				set = true
+				state = setDetect
 			}
 
 			if strings.ToUpper(str) == "GET" {
-				get = true
+				state = getValue
 			}
-
 		}
+
 	}
+}
+
+func temporaryKey() {
+	// TODO refactor the EX and PX cases here if possible
 
 }

@@ -7,3 +7,5 @@ type token struct {
 }
 
 type tokenStack []token
+
+type inputState int

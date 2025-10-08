@@ -22,6 +22,6 @@ func TestGetStore(t *testing.T) {
 	result := getStore(key)
 
 	if string(result) != string(bulkString) {
-		t.Errorf("failed to get store")
+		t.Errorf("failed to getValue store")
 	}
 }
