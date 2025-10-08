@@ -15,6 +15,11 @@ func encodeBulkString(s string) []byte {
 	return []byte(bulkString)
 }
 
+func encodeSimpleString(s string) []byte {
+	simpleString := "+" + s + "\r\n"
+	return []byte(simpleString)
+}
+
 func readLine(reader *bufio.Reader) (string, error) {
 	line, err := reader.ReadString('\n')
 	if err != nil {
@@ -46,18 +51,45 @@ func handleConnection(conn net.Conn) {
 		}
 
 		echo := false
+		set := false
+		get := false
+		setValueTrigger := false
+		key := ""
+		value := ""
 
 		for _, element := range arr {
 			fmt.Println(element)
 			str := element.(string)
-			bulkString := string(encodeBulkString(str))
+			bulkString := encodeBulkString(str)
 			if echo {
 				echo = false
-				_, err := conn.Write([]byte(bulkString))
+				_, err := conn.Write(bulkString)
 				if err != nil {
 					fmt.Println(" Error parsing echo")
 				}
 			}
+			if set {
+				set = false
+				setValueTrigger = true
+				key = str
+			} else if setValueTrigger {
+				setValueTrigger = false
+				value = str
+				setStore(key, value)
+				_, err := conn.Write(encodeSimpleString("OK"))
+				if err != nil {
+					fmt.Println(" Error parsing echo")
+				}
+			}
+			if get {
+				r := getStore(str)
+				_, err := conn.Write([]byte(r))
+				if err != nil {
+					fmt.Println(" Error parsing GET")
+				}
+				get = false
+			}
+
 			if strings.ToUpper(str) == "PING" {
 				i, err := conn.Write([]byte("+PONG\r\n"))
 				if err != nil {
@@ -69,6 +101,14 @@ func handleConnection(conn net.Conn) {
 			}
 			if strings.ToUpper(str) == "ECHO" {
 				echo = true
+			}
+
+			if strings.ToUpper(str) == "SET" {
+				set = true
+			}
+
+			if strings.ToUpper(str) == "GET" {
+				get = true
 			}
 
 		}
