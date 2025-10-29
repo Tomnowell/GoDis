@@ -17,6 +17,7 @@ const (
 	getValue          inputState = iota
 	optionDetect      inputState = iota
 	optionValueDetect inputState = iota
+	setList           inputState = iota
 )
 
 func encodeBulkString(s string) []byte {
@@ -29,6 +30,12 @@ func encodeBulkString(s string) []byte {
 func encodeSimpleString(s string) []byte {
 	simpleString := "+" + s + "\r\n"
 	return []byte(simpleString)
+}
+
+func encodeRespInt(n int) RespInt {
+
+	stringN := ":" + strconv.Itoa(n) + "\r\n"
+	return RespInt(stringN)
 }
 
 func readLine(reader *bufio.Reader) (string, error) {
@@ -79,10 +86,10 @@ func processTokens(arr []interface{}, conn net.Conn) {
 	for _, element := range arr {
 		fmt.Println(element)
 		str := element.(string)
-		bulkString := encodeBulkString(str)
 		switch state {
 		case echo:
 			state = read
+			bulkString := encodeBulkString(str)
 			_, err := conn.Write(bulkString)
 			if err != nil {
 				fmt.Println(" Error parsing echo")
@@ -120,15 +127,24 @@ func processTokens(arr []interface{}, conn net.Conn) {
 			}
 
 		case getValue:
-			r := getStore(str)
-			_, err := conn.Write(r)
+			response := getStore(str)
+			_, err := conn.Write(response)
 			if err != nil {
 				fmt.Println(" Error parsing GET")
 			}
 			state = read
 
+		case setList:
+			response, _ := makeList(str)
+			_, err := conn.Write(response)
+
+			if err != nil {
+				fmt.Println("Error writing response")
+			}
+
 		case read:
-			if strings.ToUpper(str) == "PING" {
+			strUpper := strings.ToUpper(str)
+			if strUpper == "PING" {
 				i, err := conn.Write([]byte("+PONG\r\n"))
 				if err != nil {
 					fmt.Println("Ërror parsing array")
@@ -136,16 +152,20 @@ func processTokens(arr []interface{}, conn net.Conn) {
 					fmt.Println(i)
 				}
 			}
-			if strings.ToUpper(str) == "ECHO" {
+			if strUpper == "ECHO" {
 				state = echo
 			}
 
-			if strings.ToUpper(str) == "SET" {
+			if strUpper == "SET" {
 				state = setDetect
 			}
 
-			if strings.ToUpper(str) == "GET" {
+			if strUpper == "GET" {
 				state = getValue
+			}
+
+			if strUpper == "RPUSH" {
+				state = setList
 			}
 		}
 

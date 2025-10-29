@@ -9,3 +9,5 @@ type token struct {
 type tokenStack []token
 
 type inputState int
+
+type RespInt []byte

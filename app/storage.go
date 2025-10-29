@@ -1,6 +1,7 @@
 package main
 
 import (
+	"container/list"
 	"fmt"
 	"time"
 )
@@ -9,6 +10,7 @@ const (
 	nullBulkString = "$-1\r\n"
 )
 
+// store is the key->value store for the Godis server
 var store = make(map[string]string)
 
 func setStore(key string, value string) {
@@ -31,4 +33,12 @@ func getStore(key string) []byte {
 func deleteStore(key string, delay time.Duration) {
 	time.Sleep(delay)
 	delete(store, key)
+}
+
+func makeList(key string) (RespInt, *list.List) {
+	newList := list.New()
+	newList.PushFront(key)
+
+	listLength := newList.Len()
+	return encodeRespInt(listLength), newList
 }

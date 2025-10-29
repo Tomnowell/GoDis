@@ -25,3 +25,17 @@ func TestGetStore(t *testing.T) {
 		t.Errorf("failed to getValue store")
 	}
 }
+
+func TestMakeList(t *testing.T) {
+
+	key := "foo"
+	response, list := makeList(key)
+	if string(response) != string(encodeRespInt(1)) {
+		t.Errorf("failed response, %s", response)
+	}
+	if list.Front().Value != "foo" {
+
+		t.Errorf("Failed list: %s", list.Front().Value)
+	}
+
+}
